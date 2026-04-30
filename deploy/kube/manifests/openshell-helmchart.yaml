@@ -47,7 +47,6 @@ spec:
         userRole: "__OIDC_USER_ROLE__"
         scopesClaim: "__OIDC_SCOPES_CLAIM__"
       localDomain:
-        enabled: __LOCAL_DOMAIN_ENABLED__
         cluster: __LOCAL_DOMAIN_CLUSTER__
         suffix: __LOCAL_DOMAIN_SUFFIX__
       tls:

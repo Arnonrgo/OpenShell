@@ -3430,9 +3430,28 @@ pub async fn service_expose(
         target_port,
     );
     if !response.url.is_empty() {
-        println!("  URL: {}", response.url.cyan());
+        let url = service_url_for_gateway(&response.url, server);
+        println!("  URL: {}", url.cyan());
     }
     Ok(())
+}
+
+fn service_url_for_gateway(service_url: &str, gateway_endpoint: &str) -> String {
+    let (Ok(mut service_url), Ok(gateway_endpoint)) = (
+        url::Url::parse(service_url),
+        url::Url::parse(gateway_endpoint),
+    ) else {
+        return service_url.to_string();
+    };
+
+    if service_url.set_scheme(gateway_endpoint.scheme()).is_err() {
+        return service_url.to_string();
+    }
+    if service_url.set_port(gateway_endpoint.port()).is_err() {
+        return service_url.to_string();
+    }
+
+    service_url.to_string()
 }
 
 pub async fn provider_create(
@@ -6191,6 +6210,28 @@ mod tests {
 
         assert!(dockerfile_sources_supported_for_gateway(Some(&metadata)));
         assert!(dockerfile_sources_supported_for_gateway(None));
+    }
+
+    #[test]
+    fn service_url_for_gateway_uses_external_gateway_port() {
+        assert_eq!(
+            service_url_for_gateway(
+                "https://quiet-flamingo--openclaw.navigator.openshell.localhost:8080/",
+                "https://127.0.0.1:31886"
+            ),
+            "https://quiet-flamingo--openclaw.navigator.openshell.localhost:31886/"
+        );
+    }
+
+    #[test]
+    fn service_url_for_gateway_omits_default_external_port() {
+        assert_eq!(
+            service_url_for_gateway(
+                "http://quiet-flamingo--openclaw.navigator.openshell.localhost:8080/",
+                "https://gateway.example.com"
+            ),
+            "https://quiet-flamingo--openclaw.navigator.openshell.localhost/"
+        );
     }
 
     #[test]
