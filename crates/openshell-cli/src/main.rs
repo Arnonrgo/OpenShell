@@ -1660,7 +1660,7 @@ enum ServiceCommands {
         #[arg(long)]
         target_port: u16,
 
-        /// Print and enable the local-domain URL for this service.
+        /// Print and enable the browser URL for this sandbox service.
         #[arg(long)]
         domain: bool,
     },
