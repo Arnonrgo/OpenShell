@@ -108,8 +108,6 @@ pub struct VmDriverConfig {
     pub state_dir: PathBuf,
     pub launcher_bin: Option<PathBuf>,
     pub default_image: String,
-    pub ssh_handshake_secret: String,
-    pub ssh_handshake_skew_secs: u64,
     pub log_level: String,
     pub krun_log_level: u32,
     pub vcpus: u8,
@@ -129,8 +127,6 @@ impl Default for VmDriverConfig {
             state_dir: PathBuf::from("target/openshell-vm-driver"),
             launcher_bin: None,
             default_image: String::new(),
-            ssh_handshake_secret: String::new(),
-            ssh_handshake_skew_secs: 300,
             log_level: "info".to_string(),
             krun_log_level: 1,
             vcpus: DEFAULT_VCPUS,
@@ -2221,10 +2217,6 @@ fn build_guest_environment(
             "OPENSHELL_LOG_LEVEL".to_string(),
             sandbox_log_level(sandbox, &config.log_level),
         ),
-        (
-            "OPENSHELL_SSH_HANDSHAKE_SECRET".to_string(),
-            config.ssh_handshake_secret.clone(),
-        ),
     ]);
     if config.requires_tls_materials() {
         environment.extend(HashMap::from([
@@ -2798,7 +2790,6 @@ mod tests {
     fn build_guest_environment_sets_supervisor_defaults() {
         let config = VmDriverConfig {
             openshell_endpoint: "http://127.0.0.1:8080".to_string(),
-            ssh_handshake_secret: "secret".to_string(),
             ..Default::default()
         };
         let sandbox = Sandbox {
@@ -2818,8 +2809,9 @@ mod tests {
             "OPENSHELL_SSH_SOCKET_PATH={GUEST_SSH_SOCKET_PATH}"
         )));
         assert!(
-            env.contains(&"OPENSHELL_SSH_HANDSHAKE_SECRET=secret".to_string()),
-            "SSH handshake secret must be passed to the guest"
+            !env.iter()
+                .any(|e| e.starts_with("OPENSHELL_SSH_HANDSHAKE_SECRET=")),
+            "SSH handshake secret must not be injected into guest env"
         );
     }
 
@@ -2827,7 +2819,6 @@ mod tests {
     fn build_guest_environment_uses_endpoint_override_for_tap() {
         let config = VmDriverConfig {
             openshell_endpoint: "http://127.0.0.1:8080".to_string(),
-            ssh_handshake_secret: "secret".to_string(),
             ..Default::default()
         };
         let sandbox = Sandbox {
@@ -3030,7 +3021,6 @@ mod tests {
     fn build_guest_environment_includes_tls_paths_for_https_endpoint() {
         let config = VmDriverConfig {
             openshell_endpoint: "https://127.0.0.1:8443".to_string(),
-            ssh_handshake_secret: "secret".to_string(),
             guest_tls_ca: Some(PathBuf::from("/host/ca.crt")),
             guest_tls_cert: Some(PathBuf::from("/host/tls.crt")),
             guest_tls_key: Some(PathBuf::from("/host/tls.key")),

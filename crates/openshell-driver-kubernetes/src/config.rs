@@ -15,8 +15,6 @@ pub struct KubernetesComputeConfig {
     pub supervisor_image_pull_policy: String,
     pub grpc_endpoint: String,
     pub ssh_socket_path: String,
-    pub ssh_handshake_secret: String,
-    pub ssh_handshake_skew_secs: u64,
     pub client_tls_secret_name: String,
     pub host_gateway_ip: String,
     pub enable_user_namespaces: bool,

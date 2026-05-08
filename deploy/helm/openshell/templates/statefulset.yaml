@@ -94,11 +94,6 @@ spec:
             - name: OPENSHELL_ENABLE_USER_NAMESPACES
               value: "true"
             {{- end }}
-            - name: OPENSHELL_SSH_HANDSHAKE_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.server.sshHandshakeSecretName | quote }}
-                  key: secret
             {{- if .Values.server.disableTls }}
             - name: OPENSHELL_DISABLE_TLS
               value: "true"

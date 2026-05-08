@@ -27,9 +27,6 @@ pub const DEFAULT_SERVER_PORT: u16 = 8080;
 /// Default container stop timeout in seconds (SIGTERM → SIGKILL).
 pub const DEFAULT_STOP_TIMEOUT_SECS: u32 = 10;
 
-/// Default allowed clock skew for SSH handshake validation, in seconds.
-pub const DEFAULT_SSH_HANDSHAKE_SKEW_SECS: u64 = 300;
-
 /// Default Podman bridge network name.
 pub const DEFAULT_NETWORK_NAME: &str = "openshell";
 
@@ -273,14 +270,6 @@ pub struct Config {
     #[serde(default = "default_sandbox_ssh_socket_path")]
     pub sandbox_ssh_socket_path: String,
 
-    /// Shared secret for gateway-to-sandbox SSH handshake.
-    #[serde(default)]
-    pub ssh_handshake_secret: String,
-
-    /// Allowed clock skew for SSH handshake validation, in seconds.
-    #[serde(default = "default_ssh_handshake_skew_secs")]
-    pub ssh_handshake_skew_secs: u64,
-
     /// TTL for SSH session tokens, in seconds. 0 disables expiry.
     #[serde(default = "default_ssh_session_ttl_secs")]
     pub ssh_session_ttl_secs: u64,
@@ -413,8 +402,6 @@ impl Config {
             ssh_connect_path: default_ssh_connect_path(),
             sandbox_ssh_port: default_sandbox_ssh_port(),
             sandbox_ssh_socket_path: default_sandbox_ssh_socket_path(),
-            ssh_handshake_secret: String::new(),
-            ssh_handshake_skew_secs: default_ssh_handshake_skew_secs(),
             ssh_session_ttl_secs: default_ssh_session_ttl_secs(),
             client_tls_secret_name: String::new(),
             host_gateway_ip: String::new(),
@@ -534,20 +521,6 @@ impl Config {
         self
     }
 
-    /// Create a new configuration with the SSH handshake secret.
-    #[must_use]
-    pub fn with_ssh_handshake_secret(mut self, secret: impl Into<String>) -> Self {
-        self.ssh_handshake_secret = secret.into();
-        self
-    }
-
-    /// Create a new configuration with SSH handshake skew allowance.
-    #[must_use]
-    pub const fn with_ssh_handshake_skew_secs(mut self, secs: u64) -> Self {
-        self.ssh_handshake_skew_secs = secs;
-        self
-    }
-
     /// Create a new configuration with the SSH session TTL.
     #[must_use]
     pub const fn with_ssh_session_ttl_secs(mut self, secs: u64) -> Self {
@@ -611,10 +584,6 @@ fn default_sandbox_ssh_socket_path() -> String {
 
 const fn default_sandbox_ssh_port() -> u16 {
     DEFAULT_SSH_PORT
-}
-
-const fn default_ssh_handshake_skew_secs() -> u64 {
-    DEFAULT_SSH_HANDSHAKE_SKEW_SECS
 }
 
 const fn default_ssh_session_ttl_secs() -> u64 {
