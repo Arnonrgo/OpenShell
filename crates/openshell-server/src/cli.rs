@@ -173,6 +173,14 @@ struct Args {
     )]
     vm_mem_mib: u32,
 
+    /// Writable overlay disk size for each VM sandbox, in MiB.
+    #[arg(
+        long,
+        env = "OPENSHELL_VM_OVERLAY_DISK_MIB",
+        default_value_t = VmComputeConfig::default_overlay_disk_mib()
+    )]
+    vm_overlay_disk_mib: u64,
+
     /// CA certificate installed into VM sandboxes for gateway mTLS.
     #[arg(long, env = "OPENSHELL_VM_TLS_CA")]
     vm_tls_ca: Option<PathBuf>,
@@ -411,6 +419,7 @@ async fn run_from_args(args: Args) -> Result<()> {
         krun_log_level: args.vm_krun_log_level,
         vcpus: args.vm_vcpus,
         mem_mib: args.vm_mem_mib,
+        overlay_disk_mib: args.vm_overlay_disk_mib,
         guest_tls_ca: args.vm_tls_ca,
         guest_tls_cert: args.vm_tls_cert,
         guest_tls_key: args.vm_tls_key,
