@@ -143,7 +143,11 @@ async fn proxy_to_endpoint(
     let relay = tokio::time::timeout(Duration::from_secs(10), relay_rx)
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        .map_err(|_| StatusCode::BAD_GATEWAY)?
+        .map_err(|err| {
+            warn!(error = %err, "sandbox service routing: relay target open failed");
+            StatusCode::BAD_GATEWAY
+        })?;
 
     let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
         .handshake(TokioIo::new(relay))

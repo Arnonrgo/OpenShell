@@ -5839,6 +5839,7 @@ mod tests {
         inferred_provider_type, package_managed_tls_dirs, parse_cli_setting_value,
         parse_credential_pairs, plaintext_gateway_is_remote, provisioning_timeout_message,
         ready_false_condition_message, resolve_from, sandbox_should_persist,
+        service_url_for_gateway,
     };
     use crate::TEST_ENV_LOCK;
     use hyper::StatusCode;
