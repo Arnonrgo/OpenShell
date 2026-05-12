@@ -163,6 +163,7 @@ impl ProcessHandle {
 
         scrub_sensitive_env(&mut cmd);
         inject_provider_env(&mut cmd, provider_env);
+        set_home_for_target_user(&mut cmd, policy);
 
         if let Some(dir) = workdir {
             cmd.current_dir(dir);
@@ -290,6 +291,7 @@ impl ProcessHandle {
 
         scrub_sensitive_env(&mut cmd);
         inject_provider_env(&mut cmd, provider_env);
+        set_home_for_target_user(&mut cmd, policy);
 
         if let Some(dir) = workdir {
             cmd.current_dir(dir);
@@ -424,6 +426,26 @@ impl Drop for ProcessHandle {
     fn drop(&mut self) {
         #[cfg(target_os = "linux")]
         unregister_managed_child(self.pid);
+    }
+}
+
+/// Set HOME on the child command to match the user we will drop privileges to.
+#[cfg(unix)]
+fn set_home_for_target_user(cmd: &mut Command, policy: &SandboxPolicy) {
+    let target = policy
+        .process
+        .run_as_user
+        .as_deref()
+        .filter(|s| !s.is_empty());
+
+    let user_name = match target {
+        Some(name) => name,
+        None if nix::unistd::geteuid().is_root() => "sandbox",
+        None => return,
+    };
+
+    if let Ok(Some(user)) = User::from_name(user_name) {
+        cmd.env("HOME", user.dir.to_string_lossy().as_ref());
     }
 }
 
@@ -837,5 +859,35 @@ mod tests {
         let output = cmd.output().await.expect("spawn env");
         let stdout = String::from_utf8(output.stdout).expect("utf8");
         assert!(stdout.contains("ANTHROPIC_API_KEY=openshell:resolve:env:ANTHROPIC_API_KEY"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn set_home_for_target_user_with_no_user_and_non_root() {
+        // When not root and no run_as_user, should not set HOME
+        let policy = policy_with_process(ProcessPolicy::default());
+        let mut cmd = Command::new("/bin/echo");
+        set_home_for_target_user(&mut cmd, &policy);
+        // No assertion on env since we can't inspect Command directly,
+        // but this verifies the function doesn't panic.
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn set_home_for_target_user_with_explicit_user() {
+        // When run_as_user is set to a known user, should set HOME
+        let policy = policy_with_process(ProcessPolicy {
+            run_as_user: Some("root".into()),
+            ..ProcessPolicy::default()
+        });
+        let mut cmd = Command::new("/usr/bin/env");
+        cmd.stdout(StdStdio::piped()).stderr(StdStdio::null());
+        set_home_for_target_user(&mut cmd, &policy);
+        let output = cmd.output().await.expect("spawn env");
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            stdout.contains("HOME=/root") || stdout.contains("HOME=/var/root"),
+            "expected HOME to be set to root's home dir, got: {stdout}"
+        );
     }
 }
