@@ -47,104 +47,24 @@ spec:
           image: {{ include "openshell.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - --bind-address
-            - "0.0.0.0"
-            - --port
-            - {{ .Values.service.port | quote }}
-            - --health-port
-            - {{ .Values.service.healthPort | quote }}
-            {{- if .Values.service.metricsPort }}
-            - --metrics-port
-            - {{ .Values.service.metricsPort | quote }}
-            {{- end }}
-            - --log-level
-            - {{ .Values.server.logLevel }}
+            - --config
+            - /etc/openshell/gateway.toml
             - --db-url
             - {{ .Values.server.dbUrl | quote }}
           env:
-            - name: OPENSHELL_SANDBOX_NAMESPACE
-              value: {{ include "openshell.sandboxNamespace" . | quote }}
-            - name: OPENSHELL_SANDBOX_IMAGE
-              value: {{ .Values.server.sandboxImage | quote }}
-            {{- if .Values.server.sandboxImagePullPolicy }}
-            - name: OPENSHELL_SANDBOX_IMAGE_PULL_POLICY
-              value: {{ .Values.server.sandboxImagePullPolicy | quote }}
-            {{- end }}
-            - name: OPENSHELL_SUPERVISOR_IMAGE
-              value: {{ include "openshell.supervisorImage" . | quote }}
-            {{- if .Values.supervisor.image.pullPolicy }}
-            - name: OPENSHELL_SUPERVISOR_IMAGE_PULL_POLICY
-              value: {{ .Values.supervisor.image.pullPolicy | quote }}
-            {{- end }}
-            - name: OPENSHELL_SUPERVISOR_SIDELOAD_METHOD
-              value: {{ include "openshell.supervisorSideloadMethod" . | quote }}
-            - name: OPENSHELL_GRPC_ENDPOINT
-              value: {{ include "openshell.grpcEndpoint" . | quote }}
-            {{- if .Values.server.sshGatewayHost }}
-            - name: OPENSHELL_SSH_GATEWAY_HOST
-              value: {{ .Values.server.sshGatewayHost | quote }}
-            {{- end }}
-            {{- if .Values.server.sshGatewayPort }}
-            - name: OPENSHELL_SSH_GATEWAY_PORT
-              value: {{ .Values.server.sshGatewayPort | quote }}
-            {{- end }}
-            {{- if .Values.server.hostGatewayIP }}
-            - name: OPENSHELL_HOST_GATEWAY_IP
-              value: {{ .Values.server.hostGatewayIP | quote }}
-            {{- end }}
-            {{- if .Values.server.enableUserNamespaces }}
-            - name: OPENSHELL_ENABLE_USER_NAMESPACES
-              value: "true"
-            {{- end }}
+            # Secrets are env-only. Everything else lives in the ConfigMap-
+            # backed TOML file mounted at /etc/openshell/gateway.toml.
             - name: OPENSHELL_SSH_HANDSHAKE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.server.sshHandshakeSecretName | quote }}
                   key: secret
-            {{- if .Values.server.disableTls }}
-            - name: OPENSHELL_DISABLE_TLS
-              value: "true"
-            {{- else }}
-            - name: OPENSHELL_TLS_CERT
-              value: /etc/openshell-tls/server/tls.crt
-            - name: OPENSHELL_TLS_KEY
-              value: /etc/openshell-tls/server/tls.key
-            - name: OPENSHELL_TLS_CLIENT_CA
-              value: /etc/openshell-tls/client-ca/ca.crt
-            - name: OPENSHELL_CLIENT_TLS_SECRET_NAME
-              value: {{ .Values.server.tls.clientTlsSecretName | quote }}
-            {{- if .Values.server.disableGatewayAuth }}
-            - name: OPENSHELL_DISABLE_GATEWAY_AUTH
-              value: "true"
-            {{- end }}
-            {{- end }}
-            {{- if .Values.server.oidc.issuer }}
-            - name: OPENSHELL_OIDC_ISSUER
-              value: {{ .Values.server.oidc.issuer | quote }}
-            - name: OPENSHELL_OIDC_AUDIENCE
-              value: {{ .Values.server.oidc.audience | quote }}
-            - name: OPENSHELL_OIDC_JWKS_TTL
-              value: {{ .Values.server.oidc.jwksTtl | quote }}
-            {{- if .Values.server.oidc.rolesClaim }}
-            - name: OPENSHELL_OIDC_ROLES_CLAIM
-              value: {{ .Values.server.oidc.rolesClaim | quote }}
-            {{- end }}
-            {{- if .Values.server.oidc.adminRole }}
-            - name: OPENSHELL_OIDC_ADMIN_ROLE
-              value: {{ .Values.server.oidc.adminRole | quote }}
-            {{- end }}
-            {{- if .Values.server.oidc.userRole }}
-            - name: OPENSHELL_OIDC_USER_ROLE
-              value: {{ .Values.server.oidc.userRole | quote }}
-            {{- end }}
-            {{- if .Values.server.oidc.scopesClaim }}
-            - name: OPENSHELL_OIDC_SCOPES_CLAIM
-              value: {{ .Values.server.oidc.scopesClaim | quote }}
-            {{- end }}
-            {{- end }}
           volumeMounts:
             - name: openshell-data
               mountPath: /var/openshell
+            - name: gateway-config
+              mountPath: /etc/openshell
+              readOnly: true
             {{- if not .Values.server.disableTls }}
             - name: tls-cert
               mountPath: /etc/openshell-tls/server
@@ -191,6 +111,9 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
+        - name: gateway-config
+          configMap:
+            name: {{ include "openshell.fullname" . }}-config
         {{- if not .Values.server.disableTls }}
         - name: tls-cert
           secret:
