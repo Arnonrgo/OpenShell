@@ -135,6 +135,17 @@ struct KubernetesPodDriverConfig {
 #[serde(default, deny_unknown_fields)]
 struct KubernetesDriverContainersConfig {
     agent: KubernetesContainerDriverConfig,
+    sidecars: Vec<KubernetesSidecarConfig>,
+}
+
+/// A sidecar container injected alongside the agent container.
+/// Accepts an opaque Kubernetes container spec (name, image, env, volumeMounts, etc.)
+/// passed through as-is. The driver does not validate container fields beyond name/image.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+struct KubernetesSidecarConfig {
+    #[serde(flatten)]
+    spec: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -1444,9 +1455,15 @@ fn sandbox_template_to_k8s(
         container.insert("resources".to_string(), resources);
     }
     apply_agent_driver_resources(&mut container, &driver_config.containers.agent.resources);
+    let mut containers = vec![serde_json::Value::Object(container)];
+    for sidecar in &driver_config.containers.sidecars {
+        if !sidecar.spec.is_empty() {
+            containers.push(serde_json::Value::Object(sidecar.spec.clone()));
+        }
+    }
     spec.insert(
         "containers".to_string(),
-        serde_json::Value::Array(vec![serde_json::Value::Object(container)]),
+        serde_json::Value::Array(containers),
     );
 
     // Add TLS secret volume.  Mode 0400 (owner-read) prevents the
@@ -3476,6 +3493,52 @@ mod tests {
         assert_eq!(
             pod_template["spec"]["containers"][0]["resources"]["limits"]["vendor.example/gpu-slices"],
             serde_json::json!("1")
+        );
+    }
+
+    #[test]
+    fn driver_config_sidecars_appended_to_containers() {
+        let template = SandboxTemplate {
+            driver_config: Some(json_struct(serde_json::json!({
+                "containers": {
+                    "sidecars": [{
+                        "name": "daemon",
+                        "image": "creel/krill-daemon:latest",
+                        "env": [
+                            {"name": "TENANT_ID", "value": "t1"},
+                            {"name": "CLAW_ID", "value": "123"}
+                        ],
+                        "resources": {
+                            "requests": {"cpu": "10m", "memory": "32Mi"},
+                            "limits": {"cpu": "100m", "memory": "64Mi"}
+                        }
+                    }]
+                }
+            }))),
+            ..SandboxTemplate::default()
+        };
+
+        let pod_template = sandbox_template_to_k8s(
+            &template,
+            false,
+            &std::collections::HashMap::new(),
+            false,
+            &SandboxPodParams::default(),
+        );
+
+        let containers = pod_template["spec"]["containers"]
+            .as_array()
+            .expect("containers should be an array");
+        assert_eq!(containers.len(), 2, "should have agent + 1 sidecar");
+        assert_eq!(containers[0]["name"], serde_json::json!("agent"));
+        assert_eq!(containers[1]["name"], serde_json::json!("daemon"));
+        assert_eq!(
+            containers[1]["image"],
+            serde_json::json!("creel/krill-daemon:latest")
+        );
+        assert_eq!(
+            containers[1]["env"][0]["name"],
+            serde_json::json!("TENANT_ID")
         );
     }
 
