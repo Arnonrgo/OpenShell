@@ -1759,7 +1759,7 @@ fn apply_required_env(
     upsert_env(env, openshell_core::sandbox_env::SANDBOX_ID, sandbox_id);
     upsert_env(env, openshell_core::sandbox_env::SANDBOX, sandbox_name);
     upsert_env(env, openshell_core::sandbox_env::ENDPOINT, grpc_endpoint);
-    upsert_env(
+    upsert_env_if_absent(
         env,
         openshell_core::sandbox_env::SANDBOX_COMMAND,
         "sleep infinity",
@@ -1837,6 +1837,15 @@ fn upsert_env(env: &mut Vec<serde_json::Value>, name: &str, value: &str) {
     }
 
     env.push(serde_json::json!({"name": name, "value": value}));
+}
+
+fn upsert_env_if_absent(env: &mut Vec<serde_json::Value>, name: &str, value: &str) {
+    let exists = env
+        .iter()
+        .any(|item| item.get("name").and_then(|v| v.as_str()) == Some(name));
+    if !exists {
+        env.push(serde_json::json!({"name": name, "value": value}));
+    }
 }
 
 /// Extract a string value from the template's `platform_config` Struct.

@@ -131,7 +131,7 @@ pub(super) fn validate_sandbox_spec(
     // --- spec.template ---
     if let Some(ref tmpl) = spec.template {
         validate_sandbox_template(tmpl)?;
-        validate_env_entries(&tmpl.environment, "spec.template.environment")?;
+        validate_template_env_entries(&tmpl.environment, "spec.template.environment")?;
     }
 
     // --- spec.policy serialized size ---
@@ -246,6 +246,11 @@ pub(super) fn validate_string_map(
     Ok(())
 }
 
+/// OPENSHELL_* keys that are allowed in sandbox template environment.
+/// The K8s driver uses OPENSHELL_SANDBOX_COMMAND to control the process the
+/// supervisor launches inside the container.
+const TEMPLATE_ALLOWED_OPENSHELL_KEYS: &[&str] = &["OPENSHELL_SANDBOX_COMMAND"];
+
 /// OPENSHELL_* keys that are allowed in exec environment. The Python SDK's
 /// `exec_python()` sends a serialized callable via this key.
 const EXEC_ALLOWED_OPENSHELL_KEYS: &[&str] = &["OPENSHELL_PYFUNC_B64"];
@@ -267,6 +272,19 @@ fn validate_env_entries(
         )));
     }
     validate_env_entries_inner(map, field_name, &[])
+}
+
+fn validate_template_env_entries(
+    map: &std::collections::HashMap<String, String>,
+    field_name: &str,
+) -> Result<(), Status> {
+    let total_size: usize = map.iter().map(|(k, v)| k.len() + v.len()).sum();
+    if total_size > MAX_ENV_SERIALIZED_SIZE {
+        return Err(Status::invalid_argument(format!(
+            "{field_name} total size exceeds {MAX_ENV_SERIALIZED_SIZE} byte limit ({total_size} bytes)"
+        )));
+    }
+    validate_env_entries_inner(map, field_name, TEMPLATE_ALLOWED_OPENSHELL_KEYS)
 }
 
 fn validate_exec_env_entries(
