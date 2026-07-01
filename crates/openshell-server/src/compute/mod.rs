@@ -1661,6 +1661,14 @@ fn build_platform_config(template: &SandboxTemplate) -> Option<prost_types::Stru
         );
     }
 
+    // Merge any fields from the public template's platform_config passthrough.
+    // Typed fields above take precedence over passthrough values.
+    if let Some(ref pc) = template.platform_config {
+        for (k, v) in &pc.fields {
+            fields.entry(k.clone()).or_insert_with(|| v.clone());
+        }
+    }
+
     if fields.is_empty() {
         None
     } else {

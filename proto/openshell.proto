@@ -358,6 +358,11 @@ message SandboxTemplate {
   // forwards only that inner Struct to DriverSandboxTemplate.driver_config.
   // The selected driver owns nested schema validation.
   google.protobuf.Struct driver_config = 11;
+  // Opaque platform-specific configuration passed through to the driver.
+  // Fields here are merged into the driver's platform_config alongside
+  // gateway-extracted values (runtime_class_name, annotations, etc.).
+  // For Kubernetes: node_selector, tolerations, etc.
+  google.protobuf.Struct platform_config = 12;
 }
 
 // User-facing sandbox status derived by the gateway from compute-driver observations.
