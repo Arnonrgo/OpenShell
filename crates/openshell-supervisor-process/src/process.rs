@@ -472,6 +472,7 @@ impl ProcessHandle {
         strip_supervisor_only_env(&mut cmd);
 
         inject_provider_env(&mut cmd, provider_env);
+        set_home_for_target_user(&mut cmd, policy);
 
         if let Some(dir) = workdir {
             cmd.current_dir(dir);
@@ -611,6 +612,7 @@ impl ProcessHandle {
         strip_supervisor_only_env(&mut cmd);
 
         inject_provider_env(&mut cmd, provider_env);
+        set_home_for_target_user(&mut cmd, policy);
 
         if let Some(dir) = workdir {
             cmd.current_dir(dir);
@@ -883,6 +885,29 @@ pub fn prepare_filesystem(policy: &SandboxPolicy) -> Result<()> {
 #[cfg(not(unix))]
 pub fn prepare_filesystem(_policy: &SandboxPolicy) -> Result<()> {
     Ok(())
+}
+
+/// Set HOME on the child command to match the user we will drop privileges to.
+/// Without this, containers running as root (runAsUser: 0) keep HOME=/root
+/// after the sandbox drops to the sandbox user, causing applications to look
+/// for config in the wrong directory.
+#[cfg(unix)]
+fn set_home_for_target_user(cmd: &mut Command, policy: &SandboxPolicy) {
+    let target = policy
+        .process
+        .run_as_user
+        .as_deref()
+        .filter(|s| !s.is_empty());
+
+    let user_name = match target {
+        Some(name) => name,
+        None if nix::unistd::geteuid().is_root() => "sandbox",
+        None => return,
+    };
+
+    if let Ok(Some(user)) = User::from_name(user_name) {
+        cmd.env("HOME", user.dir.to_string_lossy().as_ref());
+    }
 }
 
 // `effective_gid`/`effective_uid` are intentionally parallel names (same role
